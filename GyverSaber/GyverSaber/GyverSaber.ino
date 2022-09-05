@@ -52,7 +52,7 @@
 #define R2 51000            // voltage divider real resistance
 #define BATTERY_SAFE 1      // battery monitoring (1 - allow, 0 - disallow)
 
-#define DEBUG 0             // debug information in Serial (1 - allow, 0 - disallow)
+#define DEBUG 1             // debug information in Serial (1 - allow, 0 - disallow)
 // ---------------------------- SETTINGS -------------------------------
 
 #define LED_PIN 6
@@ -70,10 +70,10 @@
 #include "I2Cdev.h"
 #include "MPU6050.h"
 #include <toneAC.h>         // hum generation library
-#include "FastLED.h"        // addressable LED library
+//#include "FastLED.h"        // addressable LED library
 #include <EEPROM.h>
 
-CRGB leds[NUM_LEDS];
+//CRGB leds[NUM_LEDS];
 #define SD_ChipSelectPin 10
 TMRpcm tmrpcm;
 MPU6050 accelgyro;
@@ -86,7 +86,7 @@ int16_t gx, gy, gz;
 unsigned long ACC, GYR, COMPL;
 int gyroX, gyroY, gyroZ, accelX, accelY, accelZ, freq, freq_f = 20;
 float k = 0.2;
-unsigned long humTimer = -9000, mpuTimer, nowTimer;
+unsigned long humTimer = -5266, mpuTimer, nowTimer;
 int stopTimer;
 boolean bzzz_flag, ls_chg_state, ls_state;
 boolean btnState, btn_flag, hold_flag;
@@ -108,28 +108,23 @@ const char strike4[] PROGMEM = "SK4.wav";
 const char strike5[] PROGMEM = "SK5.wav";
 const char strike6[] PROGMEM = "SK6.wav";
 const char strike7[] PROGMEM = "SK7.wav";
-const char strike8[] PROGMEM = "SK8.wav";
 
 const char* const strikes[] PROGMEM  = {
-  strike1, strike2, strike3, strike4, strike5, strike6, strike7, strike8
+  strike1, strike2, strike3, strike4, strike5, strike6, strike7
 };
 
-int strike_time[8] = {779, 563, 687, 702, 673, 661, 666, 635};
+int strike_time[8] = {779, 563, 687, 702, 673, 661, 666};
 
 const char strike_s1[] PROGMEM = "SKS1.wav";
 const char strike_s2[] PROGMEM = "SKS2.wav";
 const char strike_s3[] PROGMEM = "SKS3.wav";
 const char strike_s4[] PROGMEM = "SKS4.wav";
 const char strike_s5[] PROGMEM = "SKS5.wav";
-const char strike_s6[] PROGMEM = "SKS6.wav";
-const char strike_s7[] PROGMEM = "SKS7.wav";
-const char strike_s8[] PROGMEM = "SKS8.wav";
 
 const char* const strikes_short[] PROGMEM = {
-  strike_s1, strike_s2, strike_s3, strike_s4,
-  strike_s5, strike_s6, strike_s7, strike_s8
+  strike_s1, strike_s2, strike_s3, strike_s4, strike_s5
 };
-int strike_s_time[8] = {270, 167, 186, 250, 252, 255, 250, 238};
+int strike_s_time[8] = {270, 167, 186, 250, 252};
 
 const char swing1[] PROGMEM = "SWS1.wav";
 const char swing2[] PROGMEM = "SWS2.wav";
@@ -146,18 +141,19 @@ const char swingL1[] PROGMEM = "SWL1.wav";
 const char swingL2[] PROGMEM = "SWL2.wav";
 const char swingL3[] PROGMEM = "SWL3.wav";
 const char swingL4[] PROGMEM = "SWL4.wav";
+const char swingL5[] PROGMEM = "SWL5.wav";
 
 const char* const swings_L[] PROGMEM  = {
-  swingL1, swingL2, swingL3, swingL4
+  swingL1, swingL2, swingL3, swingL4, swingL5
 };
-int swing_time_L[8] = {636, 441, 772, 702};
+int swing_time_L[8] = {636, 441, 772, 702, 702};
 
 char BUFFER[10];
 // --------------------------------- SOUNDS ---------------------------------
 
 void setup() {
-  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(100);  // ~40% of LED strip brightness
+//  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+//  FastLED.setBrightness(100);  // ~40% of LED strip brightness
   setAll(0, 0, 0);             // and turn it off
 
   Wire.begin();
@@ -186,7 +182,7 @@ void setup() {
 
   // SD initialization
   tmrpcm.speakerPin = 9;
-  tmrpcm.setVolume(5);
+  tmrpcm.setVolume(4);
   tmrpcm.quality(1);
   if (DEBUG) {
     if (SD.begin(8)) Serial.println(F("SD OK"));
@@ -197,10 +193,11 @@ void setup() {
 
   if ((EEPROM.read(0) >= 0) && (EEPROM.read(0) <= 5)) {  // check first start
     nowColor = EEPROM.read(0);   // remember color
+    EEPROM.write(1, 1);          // set default hum mode to SD card
     HUMmode = EEPROM.read(1);    // remember mode
   } else {                       // first start
     EEPROM.write(0, 0);          // set default
-    EEPROM.write(1, 0);          // set default
+    EEPROM.write(1, 1);          // set default hum mode to SD card
     nowColor = 0;                // set default
   }
 
@@ -215,12 +212,12 @@ void setup() {
   for (char i = 0; i <= capacity; i++) {   // show battery level
     setPixel(i, red, green, blue);
     setPixel((NUM_LEDS - 1 - i), red, green, blue);
-    FastLED.show();
+//    FastLED.show();
     delay(25);
   }
   delay(1000);                         // 1 second to show battery level
   setAll(0, 0, 0);
-  FastLED.setBrightness(BRIGHTNESS);   // set bright
+//  FastLED.setBrightness(BRIGHTNESS);   // set bright
 }
 
 // --- MAIN LOOP---
@@ -267,10 +264,10 @@ void btnTick() {
         HUMmode = !HUMmode;
         if (HUMmode) {
           noToneAC();
-          tmrpcm.play("HUM.wav");
+          tmrpcm.play((char*)"HUM.wav");
         } else {
           tmrpcm.disable();
-          toneAC(freq_f);
+          toneAC(freq_f,1);
         }
         eeprom_flag = 1;
       }
@@ -284,7 +281,7 @@ void on_off_sound() {
     if (!ls_state) {                 // if GyverSaber is turned off
       if (voltage_measure() > 10 || !BATTERY_SAFE) {
         if (DEBUG) Serial.println(F("SABER ON"));
-        tmrpcm.play("ON.wav");
+        tmrpcm.play((char*)"ON.wav");
         delay(200);
         light_up();
         delay(200);
@@ -292,10 +289,10 @@ void on_off_sound() {
         ls_state = true;               // remember that turned on
         if (HUMmode) {
           noToneAC();
-          tmrpcm.play("HUM.wav");
+          tmrpcm.play((char*)"HUM.wav");
         } else {
           tmrpcm.disable();
-          toneAC(freq_f);
+          toneAC(freq_f,1);
         }
       } else {
         if (DEBUG) Serial.println(F("LOW VOLTAGE!"));
@@ -309,7 +306,7 @@ void on_off_sound() {
     } else {                         // if GyverSaber is turned on
       noToneAC();
       bzzz_flag = 0;
-      tmrpcm.play("OFF.wav");
+      tmrpcm.play((char*)"OFF.wav");
       delay(300);
       light_down();
       delay(300);
@@ -325,8 +322,8 @@ void on_off_sound() {
     ls_chg_state = 0;
   }
 
-  if (((millis() - humTimer) > 9000) && bzzz_flag && HUMmode) {
-    tmrpcm.play("HUM.wav");
+  if (((millis() - humTimer) > 5266) && bzzz_flag && HUMmode) {
+    tmrpcm.play((char*)"HUM.wav");
     humTimer = millis();
     swing_flag = 1;
     strike_flag = 0;
@@ -337,7 +334,7 @@ void on_off_sound() {
       tmrpcm.disable();
       strike_flag = 0;
     }
-    toneAC(freq_f);
+    toneAC(freq_f,1);
     bzzTimer = millis();
   }
 }
@@ -365,7 +362,7 @@ void strikeTick() {
     if (!HUMmode)
       bzzTimer = millis() + strike_s_time[nowNumber] - FLASH_DELAY;
     else
-      humTimer = millis() - 9000 + strike_s_time[nowNumber] - FLASH_DELAY;
+      humTimer = millis() - 5266 + strike_s_time[nowNumber] - FLASH_DELAY;
     strike_flag = 1;
   }
   if (ACC >= STRIKE_S_THR) {
@@ -378,7 +375,7 @@ void strikeTick() {
     if (!HUMmode)
       bzzTimer = millis() + strike_time[nowNumber] - FLASH_DELAY;
     else
-      humTimer = millis() - 9000 + strike_time[nowNumber] - FLASH_DELAY;
+      humTimer = millis() - 5266 + strike_time[nowNumber] - FLASH_DELAY;
     strike_flag = 1;
   }
 }
@@ -392,7 +389,7 @@ void swingTick() {
         // читаем название трека из PROGMEM
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings[nowNumber])));
         tmrpcm.play(BUFFER);               
-        humTimer = millis() - 9000 + swing_time[nowNumber];
+        humTimer = millis() - 5266 + swing_time[nowNumber];
         swing_flag = 0;
         swing_timer = millis();
         swing_allow = 0;
@@ -402,7 +399,7 @@ void swingTick() {
         // читаем название трека из PROGMEM
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings_L[nowNumber])));
         tmrpcm.play(BUFFER);              
-        humTimer = millis() - 9000 + swing_time_L[nowNumber];
+        humTimer = millis() - 5266 + swing_time_L[nowNumber];
         swing_flag = 0;
         swing_timer = millis();
         swing_allow = 0;
@@ -449,23 +446,23 @@ void getFreq() {
 }
 
 void setPixel(int Pixel, byte red, byte green, byte blue) {
-  leds[Pixel].r = red;
-  leds[Pixel].g = green;
-  leds[Pixel].b = blue;
+//  leds[Pixel].r = red;
+//  leds[Pixel].g = green;
+//  leds[Pixel].b = blue;
 }
 
 void setAll(byte red, byte green, byte blue) {
   for (int i = 0; i < NUM_LEDS; i++ ) {
     setPixel(i, red, green, blue);
   }
-  FastLED.show();
+//  FastLED.show();
 }
 
 void light_up() {
   for (char i = 0; i <= (NUM_LEDS / 2 - 1); i++) {        
     setPixel(i, red, green, blue);
     setPixel((NUM_LEDS - 1 - i), red, green, blue);
-    FastLED.show();
+//    FastLED.show();
     delay(25);
   }
 }
@@ -474,7 +471,7 @@ void light_down() {
   for (char i = (NUM_LEDS / 2 - 1); i >= 0; i--) {      
     setPixel(i, 0, 0, 0);
     setPixel((NUM_LEDS - 1 - i), 0, 0, 0);
-    FastLED.show();
+//    FastLED.show();
     delay(25);
   }
 }
