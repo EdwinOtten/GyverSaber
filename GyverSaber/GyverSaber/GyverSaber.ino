@@ -79,28 +79,11 @@ TMRpcm tmrpcm;
 MPU6050 accelgyro;
 // -------------------------- LIBS ---------------------------
 
-
-// ------------------------------ VARIABLES ---------------------------------
-int16_t ax, ay, az;
-int16_t gx, gy, gz;
-unsigned long ACC, GYR, COMPL;
-int gyroX, gyroY, gyroZ, accelX, accelY, accelZ, freq, freq_f = 20;
-float k = 0.2;
-unsigned long humTimer = -5266, mpuTimer, nowTimer;
-int stopTimer;
-boolean bzzz_flag, ls_chg_state, ls_state;
-boolean btnState, btn_flag, hold_flag;
-byte btn_counter;
-unsigned long btn_timer, PULSE_timer, swing_timer, swing_timeout, battery_timer, bzzTimer;
-byte nowNumber;
-byte LEDcolor;  // 0 - red, 1 - green, 2 - blue, 3 - pink, 4 - yellow, 5 - ice blue
-byte nowColor, red, green, blue, redOffset, greenOffset, blueOffset;
-boolean eeprom_flag, swing_flag, swing_allow, strike_flag, HUMmode;
-float voltage;
-int PULSEOffset;
-// ------------------------------ VARIABLES ---------------------------------
-
 // --------------------------------- SOUNDS ----------------------------------
+int hum_duration = 5273;
+int on_duration = 1402;
+int off_duration = 1152;
+
 const char strike1[] PROGMEM = "SK1.wav";
 const char strike2[] PROGMEM = "SK2.wav";
 const char strike3[] PROGMEM = "SK3.wav";
@@ -150,6 +133,27 @@ int swing_time_L[8] = {636, 441, 772, 702, 702};
 
 char BUFFER[10];
 // --------------------------------- SOUNDS ---------------------------------
+
+// ------------------------------ VARIABLES ---------------------------------
+int16_t ax, ay, az;
+int16_t gx, gy, gz;
+unsigned long ACC, GYR, COMPL;
+int gyroX, gyroY, gyroZ, accelX, accelY, accelZ, freq, freq_f = 20;
+float k = 0.2;
+unsigned long humTimer = (0-hum_duration), mpuTimer, nowTimer;
+int stopTimer;
+boolean bzzz_flag, ls_chg_state, ls_state;
+boolean btnState, btn_flag, hold_flag;
+byte btn_counter;
+unsigned long btn_timer, PULSE_timer, swing_timer, swing_timeout, battery_timer, bzzTimer;
+byte nowNumber;
+byte LEDcolor;  // 0 - red, 1 - green, 2 - blue, 3 - pink, 4 - yellow, 5 - ice blue
+byte nowColor, red, green, blue, redOffset, greenOffset, blueOffset;
+boolean eeprom_flag, swing_flag, swing_allow, strike_flag, HUMmode;
+float voltage;
+int PULSEOffset;
+// ------------------------------ VARIABLES ---------------------------------
+
 
 void setup() {
 //  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
@@ -284,7 +288,7 @@ void on_off_sound() {
         tmrpcm.play((char*)"ON.wav");
         delay(200);
         light_up();
-        delay(200);
+        delay(on_duration - 200 - (NUM_LEDS / 2 * 25));
         bzzz_flag = 1;
         ls_state = true;               // remember that turned on
         if (HUMmode) {
@@ -309,7 +313,7 @@ void on_off_sound() {
       tmrpcm.play((char*)"OFF.wav");
       delay(300);
       light_down();
-      delay(300);
+      delay(off_duration - 300 - (NUM_LEDS / 2 * 25));
       tmrpcm.disable();
       if (DEBUG) Serial.println(F("SABER OFF"));
       ls_state = false;
@@ -322,7 +326,7 @@ void on_off_sound() {
     ls_chg_state = 0;
   }
 
-  if (((millis() - humTimer) > 5266) && bzzz_flag && HUMmode) {
+  if (((millis() - humTimer) > hum_duration) && bzzz_flag && HUMmode) {
     tmrpcm.play((char*)"HUM.wav");
     humTimer = millis();
     swing_flag = 1;
@@ -362,7 +366,7 @@ void strikeTick() {
     if (!HUMmode)
       bzzTimer = millis() + strike_s_time[nowNumber] - FLASH_DELAY;
     else
-      humTimer = millis() - 5266 + strike_s_time[nowNumber] - FLASH_DELAY;
+      humTimer = millis() - hum_duration + strike_s_time[nowNumber] - FLASH_DELAY;
     strike_flag = 1;
   }
   if (ACC >= STRIKE_S_THR) {
@@ -375,7 +379,7 @@ void strikeTick() {
     if (!HUMmode)
       bzzTimer = millis() + strike_time[nowNumber] - FLASH_DELAY;
     else
-      humTimer = millis() - 5266 + strike_time[nowNumber] - FLASH_DELAY;
+      humTimer = millis() - hum_duration + strike_time[nowNumber] - FLASH_DELAY;
     strike_flag = 1;
   }
 }
@@ -389,7 +393,7 @@ void swingTick() {
         // читаем название трека из PROGMEM
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings[nowNumber])));
         tmrpcm.play(BUFFER);               
-        humTimer = millis() - 5266 + swing_time[nowNumber];
+        humTimer = millis() - hum_duration + swing_time[nowNumber];
         swing_flag = 0;
         swing_timer = millis();
         swing_allow = 0;
@@ -399,7 +403,7 @@ void swingTick() {
         // читаем название трека из PROGMEM
         strcpy_P(BUFFER, (char*)pgm_read_word(&(swings_L[nowNumber])));
         tmrpcm.play(BUFFER);              
-        humTimer = millis() - 5266 + swing_time_L[nowNumber];
+        humTimer = millis() - hum_duration + swing_time_L[nowNumber];
         swing_flag = 0;
         swing_timer = millis();
         swing_allow = 0;
@@ -459,7 +463,7 @@ void setAll(byte red, byte green, byte blue) {
 }
 
 void light_up() {
-  for (char i = 0; i <= (NUM_LEDS / 2 - 1); i++) {        
+  for (char i = 0; i <= (NUM_LEDS / 2 - 1); i++) {
     setPixel(i, red, green, blue);
     setPixel((NUM_LEDS - 1 - i), red, green, blue);
 //    FastLED.show();
