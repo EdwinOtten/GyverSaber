@@ -23,7 +23,7 @@
        Battery is drain AFTER TURNING ON: GyverSaber will be turned off automatically
    CONTROL BUTTON:
      HOLD - turn on / turn off GyverSaber
-     TRIPLE CLICK - change color (red - green - blue - yellow - pink - ice blue)
+     TRIPLE CLICK - change color (red - green - blue - purple - pink - ice blue)
      QUINARY CLICK - change sound mode (hum generation - hum playing)
      Selected color and sound mode stored in EEPROM (non-volatile memory)
      
@@ -33,7 +33,7 @@
 */
 
 // ---------------------------- SETTINGS -------------------------------
-#define NUM_LEDS 30         // number of microcircuits WS2811 on LED strip (note: one WS2811 controls 3 LEDs!)
+#define NUM_LEDS 40         // number of microcircuits WS2811 on LED strip (note: one WS2811 controls 3 LEDs!)
 #define BTN_TIMEOUT 800     // button hold delay, ms
 #define BRIGHTNESS 255      // max LED brightness (0 - 255)
 
@@ -44,7 +44,7 @@
 #define STRIKE_S_THR 320    // hard hit acceleration threshold
 #define FLASH_DELAY 80      // flash time while hit
 
-#define PULSE_ALLOW 1       // blade pulsation (1 - allow, 0 - disallow)
+#define PULSE_ALLOW 0       // blade pulsation (1 - allow, 0 - disallow)
 #define PULSE_AMPL 20       // pulse amplitude
 #define PULSE_DELAY 30      // delay between pulses
 
@@ -70,17 +70,17 @@
 #include "I2Cdev.h"
 #include "MPU6050.h"
 #include <toneAC.h>         // hum generation library
-//#include "FastLED.h"        // addressable LED library
+#include "FastLED.h"        // addressable LED library
 #include <EEPROM.h>
 
-//CRGB leds[NUM_LEDS];
+CRGB leds[NUM_LEDS];
 #define SD_ChipSelectPin 10
 TMRpcm tmrpcm;
 MPU6050 accelgyro;
 // -------------------------- LIBS ---------------------------
 
 // --------------------------------- SOUNDS ----------------------------------
-int hum_duration = 5273;
+int hum_duration = 5272;
 int on_duration = 1402;
 int off_duration = 1152;
 
@@ -147,7 +147,7 @@ boolean btnState, btn_flag, hold_flag;
 byte btn_counter;
 unsigned long btn_timer, PULSE_timer, swing_timer, swing_timeout, battery_timer, bzzTimer;
 byte nowNumber;
-byte LEDcolor;  // 0 - red, 1 - green, 2 - blue, 3 - pink, 4 - yellow, 5 - ice blue
+byte LEDcolor;  // 0 - red, 1 - green, 2 - blue, 3 - pink, 4 - purple, 5 - ice blue
 byte nowColor, red, green, blue, redOffset, greenOffset, blueOffset;
 boolean eeprom_flag, swing_flag, swing_allow, strike_flag, HUMmode;
 float voltage;
@@ -156,8 +156,8 @@ int PULSEOffset;
 
 
 void setup() {
-//  FastLED.addLeds<WS2811, LED_PIN, GRB>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
-//  FastLED.setBrightness(100);  // ~40% of LED strip brightness
+  FastLED.addLeds<WS2811, LED_PIN, BRG>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.setBrightness(100);  // ~40% of LED strip brightness
   setAll(0, 0, 0);             // and turn it off
 
   Wire.begin();
@@ -205,34 +205,34 @@ void setup() {
     nowColor = 0;                // set default
   }
 
-  setColor(nowColor);
   byte capacity = voltage_measure();       // get battery level
-  capacity = map(capacity, 100, 0, (NUM_LEDS / 2 - 1), 1);  // convert into blade lenght
   if (DEBUG) {
     Serial.print(F("Battery: "));
-    Serial.println(capacity);
+    Serial.print(map(capacity, 0, 255, 1, 100));
+    Serial.println(F("%"));
   }
-
+  setColor(nowColor);
+  capacity = map(capacity, 0, 255, 0, (NUM_LEDS / 2 - 1));  // convert into blade lenght
   for (char i = 0; i <= capacity; i++) {   // show battery level
     setPixel(i, red, green, blue);
     setPixel((NUM_LEDS - 1 - i), red, green, blue);
-//    FastLED.show();
+    FastLED.show();
     delay(25);
   }
   delay(1000);                         // 1 second to show battery level
   setAll(0, 0, 0);
-//  FastLED.setBrightness(BRIGHTNESS);   // set bright
+  FastLED.setBrightness(BRIGHTNESS);   // set bright
 }
 
 // --- MAIN LOOP---
 void loop() {
   randomPULSE();
-  getFreq();
+//  getFreq();
   on_off_sound();
   btnTick();
-  strikeTick();
-  swingTick();
-  batteryTick();
+//  strikeTick();
+//  swingTick();
+//  batteryTick();
 }
 // --- MAIN LOOP---
 
@@ -258,6 +258,7 @@ void btnTick() {
   if ((millis() - btn_timer > BTN_TIMEOUT) && (btn_counter != 0)) {
     if (ls_state) {
       if (btn_counter == 3) {               // 3 press count
+        if (DEBUG) Serial.println(F("Change color"));
         nowColor++;                         // change color
         if (nowColor >= 6) nowColor = 0;
         setColor(nowColor);
@@ -347,7 +348,7 @@ void randomPULSE() {
   if (PULSE_ALLOW && ls_state && (millis() - PULSE_timer > PULSE_DELAY)) {
     PULSE_timer = millis();
     PULSEOffset = PULSEOffset * k + random(-PULSE_AMPL, PULSE_AMPL) * (1 - k);
-    if (nowColor == 0) PULSEOffset = constrain(PULSEOffset, -15, 5);
+    if (nowColor == 0) PULSEOffset = constrain(PULSEOffset, -10, 3);
     redOffset = constrain(red + PULSEOffset, 0, 255);
     greenOffset = constrain(green + PULSEOffset, 0, 255);
     blueOffset = constrain(blue + PULSEOffset, 0, 255);
@@ -450,23 +451,23 @@ void getFreq() {
 }
 
 void setPixel(int Pixel, byte red, byte green, byte blue) {
-//  leds[Pixel].r = red;
-//  leds[Pixel].g = green;
-//  leds[Pixel].b = blue;
+  leds[Pixel].r = red;
+  leds[Pixel].g = green;
+  leds[Pixel].b = blue;
 }
 
 void setAll(byte red, byte green, byte blue) {
   for (int i = 0; i < NUM_LEDS; i++ ) {
     setPixel(i, red, green, blue);
   }
-//  FastLED.show();
+  FastLED.show();
 }
 
 void light_up() {
   for (char i = 0; i <= (NUM_LEDS / 2 - 1); i++) {
     setPixel(i, red, green, blue);
     setPixel((NUM_LEDS - 1 - i), red, green, blue);
-//    FastLED.show();
+    FastLED.show();
     delay(25);
   }
 }
@@ -475,7 +476,7 @@ void light_down() {
   for (char i = (NUM_LEDS / 2 - 1); i >= 0; i--) {      
     setPixel(i, 0, 0, 0);
     setPixel((NUM_LEDS - 1 - i), 0, 0, 0);
-//    FastLED.show();
+    FastLED.show();
     delay(25);
   }
 }
@@ -488,7 +489,7 @@ void hit_flash() {
 
 void setColor(byte color) {
   switch (color) {
-    // 0 - red, 1 - green, 2 - blue, 3 - pink, 4 - yellow, 5 - ice blue
+    // 0 - red, 1 - green, 2 - blue, 3 - pink, 4 - purple, 5 - ice blue
     case 0:
       red = 255;
       green = 0;
@@ -507,12 +508,12 @@ void setColor(byte color) {
     case 3:
       red = 255;
       green = 0;
-      blue = 255;
+      blue = 220;
       break;
     case 4:
-      red = 255;
-      green = 255;
-      blue = 0;
+      red = 170;
+      green = 0;
+      blue = 255;
       break;
     case 5:
       red = 0;
